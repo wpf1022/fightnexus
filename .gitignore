@@ -1,0 +1,4 @@
+test/shot*.png
+test/*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>FN Diag</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div id="app">
+  <div id="stage-wrap">
+    <canvas id="game" width="1280" height="720"></canvas>
+    <div id="overlay" class="overlay"></div>
+    <div id="toastBox"></div>
+  </div>
+</div>
+<pre id="diag" style="position:fixed;right:8px;bottom:8px;background:#000c;color:#8f8;padding:6px;font-size:11px;z-index:99;max-width:60vw;white-space:pre-wrap">booting...</pre>
+<script>
+/* 预置存档：跳过 FTUE（诊断目标是人机对战路径） */
+try {
+  var save = JSON.parse(localStorage.getItem('fightnexus_save_v1') || '{}');
+  save.ftueDone = true;
+  localStorage.setItem('fightnexus_save_v1', JSON.stringify(save));
+} catch (e) { }
+window.__errs = [];
+window.addEventListener('error', function (e) {
+  var er = e.error || {};
+  window.__errs.push((e.message || 'script error') + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno +
+    (er.stack ? '\n' + er.stack.split('\n').slice(1, 4).join('\n') : ''));
+});
+window.addEventListener('unhandledrejection', function (e) {
+  window.__errs.push('rejection: ' + (e.reason && e.reason.message || e.reason));
+});
+</script>
+<script src="../js/cfg/balance.js"></script>
+<script src="../js/cfg/chars.js"></script>
+<script src="../js/cfg/frames.js"></script>
+<script src="../js/core/util.js"></script>
+<script src="../js/core/i18n.js"></script>
+<script src="../js/core/input.js"></script>
+<script src="../js/core/fighter.js"></script>
+<script src="../js/core/ai.js"></script>
+<script src="../js/core/match.js"></script>
+<script src="../js/render/skeleton.js"></script>
+<script src="../js/render/scene.js"></script>
+<script src="../js/audio.js"></script>
+<script src="../js/ui/screens.js"></script>
+<script src="../js/main.js"></script>
+<script>
+window.addEventListener('load', function () {
+  var App = FN.App, diag = document.getElementById('diag');
+  /* 人机对战：走真实 UI 启动路径 */
+  var fakeT = performance.now();
+  setTimeout(function () {
+    try {
+      App.selectMode('ai');
+      App.params.difficulty = 'expert';
+      App.pickChar('goro');
+      App.confirmSelection();
+    } catch (e) { window.__errs.push('start: ' + (e.stack || e.message)); }
+  }, 300);
+  /* headless 下 rAF 不被虚拟时间驱动：同步泵帧；写进度定位挂死点 */
+  setTimeout(function () {
+    var t0 = Date.now();
+    for (var i = 0; i < 900; i++) {
+      if (i % 50 === 0) diag.textContent = 'pump ' + i + '/900';
+      try { fakeT += 16.7; App.loop(fakeT); } catch (e) { window.__errs.push('loop' + i + ': ' + (e.stack || e.message)); }
+    }
+    window.__pumpMs = Date.now() - t0;
+    finalDiag();
+  }, 400);
+  function finalDiag() {
+    var m = App.match;
+    diag.textContent = 'FINAL ' + JSON.stringify({
+      screen: App.screen, matchFrame: m ? m.frame : -1, phase: m ? m.phase : '-',
+      paused: App.paused, countdown: App.countdown | 0, fps: App.fps | 0,
+      loopErr: App.loopError | 0,
+      fxParts: FN.FX.parts.length, fxTexts: FN.FX.texts.length,
+      inputLog: m && m.inputLog ? m.inputLog.length : -1,
+      hp: m ? [Math.round(m.fighters[0].hp), Math.round(m.fighters[1].hp)] : null,
+      wins: m ? m.wins.join('-') : null,
+      errs: window.__errs.slice(0, 8)
+    });
+  }
+
+});
+</script>
+</body>
+</html>
